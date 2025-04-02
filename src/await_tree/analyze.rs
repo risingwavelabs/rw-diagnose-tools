@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
 use crate::await_tree::tree::{SpanNodeView, TreeView};
-use crate::await_tree::utils::{extract_actor_traces, parse_tree_view_from_text};
+use crate::await_tree::utils::extract_actor_traces;
 
 impl TreeView {
     /// The target of this function is to analyze whether the current tree is the
@@ -117,12 +119,12 @@ pub fn bottleneck_detect_from_file(path: String) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
     let mut bottleneck_actors_found = false;
     for (actor_id, trace) in actor_traces {
-        let tree: TreeView = if trace.trim().starts_with("{") {
+        let tree = if trace.trim().starts_with("{") {
             // JSON usually starts with `{`
             serde_json::from_str(&trace)
                 .map_err(|e| anyhow::anyhow!("Failed to parse actor trace JSON: {}", e))?
         } else {
-            parse_tree_view_from_text(&trace)
+            TreeView::from_str(&trace)
                 .map_err(|e| anyhow::anyhow!("Failed to parse actor trace text: {}", e))?
         };
 

@@ -14,11 +14,11 @@
 
 //! This example shows the basic usage of `await-tree`.
 
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use await_tree::{span, Config, InstrumentAwait, Registry};
 use futures::future::{join, pending};
-use rw_diagnose_tools::await_tree::parse_tree_view_from_text;
+use rw_diagnose_tools::await_tree::TreeView;
 use tokio::time::sleep;
 
 async fn bar(i: i32) {
@@ -50,7 +50,7 @@ async fn main() {
 
     sleep(Duration::from_secs(1)).await;
     let tree_str = registry.get(()).unwrap().to_string();
-    let tree_view = parse_tree_view_from_text(&tree_str).unwrap();
+    let tree_view = TreeView::from_str(&tree_str).unwrap();
     assert_eq!(tree_str, tree_view.to_string());
     // foo [1.006s]
     //   bar [1.006s]
