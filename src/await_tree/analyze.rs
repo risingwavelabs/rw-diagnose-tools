@@ -12,14 +12,104 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::str::FromStr;
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 
-use crate::await_tree::tree::{SpanNodeView, TreeView};
+use crate::await_tree::tree::TreeView;
 use crate::await_tree::utils::extract_actor_traces;
+use crate::await_tree::utils::parse_tree_from_trace;
+
+#[derive(Debug, Clone)]
+pub struct AnalyzeSummary {
+    has_fast_children_actors: HashMap<u32, TreeView>,
+    /// IO bound rule usually match a lot of Trees once the storage is unavailable, as a
+    /// result, too many trees are outputed. We only output the actor ids here.
+    io_bound_actors: Vec<u32>,
+}
+
+impl AnalyzeSummary {
+    pub fn new() -> Self {
+        Self {
+            has_fast_children_actors: HashMap::new(),
+            io_bound_actors: Vec::new(),
+        }
+    }
+
+    pub fn from_traces<'a, M>(actor_traces: M) -> anyhow::Result<Self>
+    where
+        M: IntoIterator<Item = (&'a u32, &'a String)>,
+    {
+        let mut summary = Self::new();
+        for (actor_id, trace) in actor_traces {
+            let tree = parse_tree_from_trace(trace)?;
+            if tree.has_fast_children() {
+                summary.has_fast_children_actors.insert(*actor_id, tree);
+            } else if tree.is_io_bound() {
+                summary.io_bound_actors.push(*actor_id);
+            }
+        }
+        Ok(summary)
+    }
+
+    pub fn add_fast_children_actor(&mut self, actor_id: u32, tree: TreeView) {
+        self.has_fast_children_actors.insert(actor_id, tree);
+    }
+
+    pub fn add_io_bound_actor(&mut self, actor_id: u32) {
+        self.io_bound_actors.push(actor_id);
+    }
+
+    pub fn merge_other(&mut self, b: &AnalyzeSummary) {
+        self.has_fast_children_actors
+            .extend(b.has_fast_children_actors.clone());
+        self.io_bound_actors.extend(b.io_bound_actors.clone());
+    }
+}
+
+impl Default for AnalyzeSummary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Display for AnalyzeSummary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Analyze Summary:")?;
+        let mut bottleneck_actors_found = false;
+
+        if !self.has_fast_children_actors.is_empty() {
+            writeln!(f, "Fast Children Actors:")?;
+            for (actor_id, tree) in &self.has_fast_children_actors {
+                writeln!(f, ">> Actor {}", actor_id)?;
+                writeln!(f, "{}", tree)?;
+            }
+            bottleneck_actors_found = true;
+        }
+        if !self.io_bound_actors.is_empty() {
+            writeln!(f, "IO Bound Actors:")?;
+            let mut sorted_io_bound_actors = self.io_bound_actors.clone();
+            sorted_io_bound_actors.sort_unstable();
+            writeln!(f, "{:?}", sorted_io_bound_actors)?;
+            bottleneck_actors_found = true;
+        }
+
+        if !bottleneck_actors_found {
+            writeln!(f, "No bottleneck actors detected.")?;
+        }
+        Ok(())
+    }
+}
 
 impl TreeView {
     /// The target of this function is to analyze whether the current tree is the
     /// bottleneck.
+    ///
+    pub fn is_bottleneck(&self) -> bool {
+        self.has_fast_children() || self.is_io_bound()
+    }
+
+    /// This function checks if the tree contains the characteristic bottleneck pattern:
+    /// a slow parent span node whose children are comparatively fast.
     ///
     /// We assume there are three types of trees regarding the status in a stuck graph:
     ///
@@ -81,8 +171,8 @@ impl TreeView {
     /// the bottleneck actor is still yielding output to downstream actors. A typical
     /// case is JOIN amplification. So the corresponding actors are actively processing
     /// the data but the EPOCH span is blocked.
-    pub fn is_bottleneck(&self) -> bool {
-        fn visit(node: &SpanNodeView) -> bool {
+    pub(crate) fn has_fast_children(&self) -> bool {
+        self.tree.visit(&|node| {
             let elapsed_secs = node.elapsed_ns as f64 / 1_000_000_000.0;
             let slow_span = !node.span.is_long_running && elapsed_secs >= 10.0;
             let is_epoch = node.span.name.starts_with("Epoch");
@@ -101,42 +191,31 @@ impl TreeView {
                     return true;
                 }
             }
+            false
+        })
+    }
 
-            // visit children recursively
-            for child in &node.children {
-                if visit(child) {
-                    return true;
-                }
+    /// This function checks if the tree contains the characteristic bottleneck pattern:
+    /// the tree is blocked by `store_flush` or `store_get`.
+    /// TODO(kexiang): Can we generalize it as: if a leaf span is slow and it is not one
+    /// of the following types—Merge, LocalOutput, LocalInput, RemoteOutput, or
+    /// RemoteInput—then, we can conclude that it is the bottleneck?
+    pub(crate) fn is_io_bound(&self) -> bool {
+        self.tree.visit(&|node| {
+            let elapsed_secs = node.elapsed_ns as f64 / 1_000_000_000.0;
+            let slow_span = !node.span.is_long_running && elapsed_secs >= 10.0;
+            let is_io_operation = node.span.name == "store_flush" || node.span.name == "store_get";
+
+            if is_io_operation && slow_span {
+                return true;
             }
             false
-        }
-        visit(&self.tree)
+        })
     }
 }
 
-pub fn bottleneck_detect_from_file(path: String) -> anyhow::Result<()> {
-    let actor_traces = extract_actor_traces(&path)
+pub fn bottleneck_detect_from_file(path: &str) -> anyhow::Result<AnalyzeSummary> {
+    let actor_traces = extract_actor_traces(path)
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
-    let mut bottleneck_actors_found = false;
-    for (actor_id, trace) in actor_traces {
-        let tree = if trace.trim().starts_with("{") {
-            // JSON usually starts with `{`
-            serde_json::from_str(&trace)
-                .map_err(|e| anyhow::anyhow!("Failed to parse actor trace JSON: {}", e))?
-        } else {
-            TreeView::from_str(&trace)
-                .map_err(|e| anyhow::anyhow!("Failed to parse actor trace text: {}", e))?
-        };
-
-        if tree.is_bottleneck() {
-            bottleneck_actors_found = true;
-
-            println!(">> Actor {}", actor_id);
-            println!("{}", tree);
-        }
-    }
-    if !bottleneck_actors_found {
-        println!("No bottleneck actors detected.");
-    }
-    Ok(())
+    AnalyzeSummary::from_traces(&actor_traces)
 }

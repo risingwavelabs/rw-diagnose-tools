@@ -47,6 +47,23 @@ pub(crate) struct SpanNodeView {
     pub children: Vec<SpanNodeView>,
 }
 
+impl SpanNodeView {
+    pub fn visit<F>(&self, f: &F) -> bool
+    where
+        F: Fn(&SpanNodeView) -> bool,
+    {
+        if f(self) {
+            return true;
+        }
+        for child in &self.children {
+            if Self::visit(child, f) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct SpanView {
     /// Span name (likely String or interned)
