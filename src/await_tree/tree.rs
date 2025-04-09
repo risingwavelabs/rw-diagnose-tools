@@ -62,6 +62,16 @@ impl SpanNodeView {
         }
         false
     }
+
+    pub fn visit_all<F>(&self, f: &mut F)
+    where
+        F: FnMut(&SpanNodeView),
+    {
+        f(self);
+        for child in &self.children {
+            child.visit_all(f);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

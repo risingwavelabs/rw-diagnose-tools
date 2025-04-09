@@ -12,26 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashMap;
+use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 
 use crate::await_tree::tree::TreeView;
 use crate::await_tree::utils::extract_actor_traces;
 use crate::await_tree::utils::parse_tree_from_trace;
 
+type IoInfo = String;
 #[derive(Debug, Clone)]
 pub struct AnalyzeSummary {
     has_fast_children_actors: HashMap<u32, TreeView>,
     /// IO bound rule usually match a lot of Trees once the storage is unavailable, as a
     /// result, too many trees are outputed. We only output the actor ids here.
-    io_bound_actors: Vec<u32>,
+    io_bound_actors: HashMap<IoInfo, HashSet<u32>>,
 }
 
 impl AnalyzeSummary {
     pub fn new() -> Self {
         Self {
             has_fast_children_actors: HashMap::new(),
-            io_bound_actors: Vec::new(),
+            io_bound_actors: HashMap::new(),
         }
     }
 
@@ -43,20 +45,13 @@ impl AnalyzeSummary {
         for (actor_id, trace) in actor_traces {
             let tree = parse_tree_from_trace(trace)?;
             if tree.has_fast_children() {
-                summary.has_fast_children_actors.insert(*actor_id, tree);
-            } else if tree.is_io_bound() {
-                summary.io_bound_actors.push(*actor_id);
+                summary
+                    .has_fast_children_actors
+                    .insert(*actor_id, tree.clone());
             }
+            tree.find_io_bound(*actor_id, &mut summary.io_bound_actors);
         }
         Ok(summary)
-    }
-
-    pub fn add_fast_children_actor(&mut self, actor_id: u32, tree: TreeView) {
-        self.has_fast_children_actors.insert(actor_id, tree);
-    }
-
-    pub fn add_io_bound_actor(&mut self, actor_id: u32) {
-        self.io_bound_actors.push(actor_id);
     }
 
     pub fn merge_other(&mut self, b: &AnalyzeSummary) {
@@ -74,11 +69,11 @@ impl Default for AnalyzeSummary {
 
 impl Display for AnalyzeSummary {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Analyze Summary:")?;
+        writeln!(f, "------ Analyze Summary ------")?;
         let mut bottleneck_actors_found = false;
 
         if !self.has_fast_children_actors.is_empty() {
-            writeln!(f, "Fast Children Actors:")?;
+            writeln!(f, "--- Fast Children Actors ---")?;
             for (actor_id, tree) in &self.has_fast_children_actors {
                 writeln!(f, ">> Actor {}", actor_id)?;
                 writeln!(f, "{}", tree)?;
@@ -86,10 +81,11 @@ impl Display for AnalyzeSummary {
             bottleneck_actors_found = true;
         }
         if !self.io_bound_actors.is_empty() {
-            writeln!(f, "IO Bound Actors:")?;
-            let mut sorted_io_bound_actors = self.io_bound_actors.clone();
-            sorted_io_bound_actors.sort_unstable();
-            writeln!(f, "{:?}", sorted_io_bound_actors)?;
+            writeln!(f, "--- IO Bound Actors ---")?;
+            for (io_info, actor_ids) in self.io_bound_actors.iter().sorted_by_key(|x| x.0) {
+                writeln!(f, ">> IO Info: `{}`", io_info)?;
+                writeln!(f, "  Actor IDs: {:?}", actor_ids)?;
+            }
             bottleneck_actors_found = true;
         }
 
@@ -103,7 +99,6 @@ impl Display for AnalyzeSummary {
 impl TreeView {
     /// The target of this function is to analyze whether the current tree is the
     /// bottleneck.
-    ///
     pub fn is_bottleneck(&self) -> bool {
         self.has_fast_children() || self.is_io_bound()
     }
@@ -195,22 +190,35 @@ impl TreeView {
         })
     }
 
+    fn is_io_bound(&self) -> bool {
+        let mut map = HashMap::new();
+        self.find_io_bound(0, &mut map);
+        !map.is_empty()
+    }
+
     /// This function checks if the tree contains the characteristic bottleneck pattern:
     /// the tree is blocked by `store_flush` or `store_get`.
     /// TODO(kexiang): Can we generalize it as: if a leaf span is slow and it is not one
     /// of the following types—Merge, LocalOutput, LocalInput, RemoteOutput, or
     /// RemoteInput—then, we can conclude that it is the bottleneck?
-    pub(crate) fn is_io_bound(&self) -> bool {
-        self.tree.visit(&|node| {
+    pub(crate) fn find_io_bound(
+        &self,
+        actor_id: u32,
+        io_bound_actors: &mut HashMap<IoInfo, HashSet<u32>>,
+    ) {
+        self.tree.visit_all(&mut |node| {
             let elapsed_secs = node.elapsed_ns as f64 / 1_000_000_000.0;
             let slow_span = !node.span.is_long_running && elapsed_secs >= 10.0;
-            let is_io_operation = node.span.name == "store_flush" || node.span.name == "store_get";
+            let is_io_operation =
+                node.span.name.starts_with("store_") || node.span.name.contains("fetch_block");
 
             if is_io_operation && slow_span {
-                return true;
+                io_bound_actors
+                    .entry(node.span.name.clone())
+                    .or_default()
+                    .insert(actor_id);
             }
-            false
-        })
+        });
     }
 }
 

@@ -98,10 +98,10 @@ pub(crate) fn extract_actor_traces<P: AsRef<Path>>(
 pub(crate) fn parse_tree_from_trace(trace: &str) -> anyhow::Result<TreeView> {
     if trace.trim().starts_with("{") {
         // JSON usually starts with `{`
-        serde_json::from_str(&trace)
+        serde_json::from_str(trace)
             .map_err(|e| anyhow::anyhow!("Failed to parse actor trace JSON: {}", e))
     } else {
-        TreeView::from_str(&trace)
+        TreeView::from_str(trace)
             .map_err(|e| anyhow::anyhow!("Failed to parse actor trace text: {}", e))
     }
 }
