@@ -42,7 +42,7 @@ jobs:
         working-directory: ./web
         run: |
           npm ci
-          npm run build
+          npm run build:prod
 
       # --- Deployment Setup ---
       - name: Setup Pages
