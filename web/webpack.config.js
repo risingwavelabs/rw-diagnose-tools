@@ -8,6 +8,8 @@ const __dirname = path.dirname(__filename);
 
 export default (env, argv) => {
     const isProduction = argv.mode === 'production';
+    // Determine public path based on environment
+    const publicPath = isProduction ? '/rw-diagnose-tools/' : '/';
 
     return {
         entry: './src/main.tsx', // Ensure you have src/main.tsx as the entry point
@@ -15,7 +17,7 @@ export default (env, argv) => {
             path: path.resolve(__dirname, 'dist'),
             filename: isProduction ? '[name].[contenthash].js' : '[name].bundle.js',
             clean: true, // Clean the output directory before build
-            publicPath: '/', // Base path for all assets
+            publicPath: publicPath, // Use the determined public path
         },
         module: {
             rules: [
