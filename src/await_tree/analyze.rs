@@ -223,7 +223,9 @@ impl TreeView {
 }
 
 pub fn bottleneck_detect_from_file(path: &str) -> anyhow::Result<AnalyzeSummary> {
-    let actor_traces = extract_actor_traces(path)
+    let content =
+        std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("Failed to read file: {}", e))?;
+    let actor_traces = extract_actor_traces(&content)
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
     AnalyzeSummary::from_traces(&actor_traces)
 }

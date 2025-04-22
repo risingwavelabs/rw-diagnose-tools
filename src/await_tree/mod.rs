@@ -15,7 +15,7 @@
 mod analyze;
 mod transcribe;
 mod tree;
-mod utils;
+pub(crate) mod utils;
 
 pub use analyze::*;
 pub use transcribe::*;

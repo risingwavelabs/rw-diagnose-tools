@@ -1,0 +1,43 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:webpack": "webpack serve --mode development",
+    "build:webpack": "webpack --mode production",
+    "build:wasm": "wasm-pack build ../ --target web --out-dir ./out --out-name rw_diagnose_tools --features wasm",
+    "dev": "npm-run-all --parallel build:wasm dev:webpack",
+    "build": "npm run build:wasm && npm run build:webpack",
+    "lint": "eslint .",
+    "preview": "echo 'Preview not configured for Webpack. Serve ./dist manually.'"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "webpack": "^5.93.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.0.4",
+    "html-webpack-plugin": "^5.6.0",
+    "babel-loader": "^9.1.3",
+    "@babel/core": "^7.24.9",
+    "@babel/preset-env": "^7.25.0",
+    "@babel/preset-react": "^7.24.7",
+    "@babel/preset-typescript": "^7.24.7",
+    "css-loader": "^7.1.2",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.5.1",
+    "@eslint/js": "^9.22.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "eslint": "^9.22.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.19",
+    "globals": "^16.0.0",
+    "typescript": "~5.7.2",
+    "typescript-eslint": "^8.26.1",
+    "npm-run-all": "^4.1.5"
+  }
+}
