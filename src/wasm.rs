@@ -23,9 +23,9 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 fn from_file_content(content: &str) -> anyhow::Result<String> {
     let actor_traces = extract_actor_traces(content)
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
-    
+
     web_sys::console::log_1(&format!("actor_traces: {:#?}", actor_traces).into());
-    
+
     Ok(AnalyzeSummary::from_traces(&actor_traces)
         .context("Failed to analyze traces")?
         .to_string())
