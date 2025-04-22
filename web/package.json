@@ -9,7 +9,6 @@
     "build:wasm": "wasm-pack build ../ --target web --out-dir ./out --out-name rw_diagnose_tools --features wasm",
     "dev": "npm-run-all --parallel build:wasm dev:webpack",
     "build": "npm run build:wasm && npm run build:webpack",
-    "build:prod": "npm run build:wasm && npm run build:webpack --mode production",
     "lint": "eslint .",
     "preview": "echo 'Preview not configured for Webpack. Serve ./dist manually.'"
   },
