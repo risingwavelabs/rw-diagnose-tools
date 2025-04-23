@@ -12,6 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Await-Tree Dump format
+//!
+//! <https://github.com/risingwavelabs/risingwave/blob/0aae97855991527ef024ddf6fda1529d81130d78/dashboard/pages/await_tree.tsx#L59-L76>
+//!
+//! ```
+//! Await-Tree Dump of All Compute Nodes:
+//!
+//! [Actor 1]
+//! Actor 1: `<mv_name (release mode) or sql (debug_mode)>` [5.277s]
+//!   Epoch 8397931225350144 [374.387ms]
+//!     Source 100002712 [374.648ms]
+//!       receive_barrier [374.648ms]
+//! ```
+//!
+//! Diagnose report format
+//!
+//! Check `impl Display for StackTraceResponseOutput<'_>` for the format of the file.
+//! <https://github.com/risingwavelabs/risingwave/blob/96d5238e55f91613f96f1f5d35fced0506882637/src/common/src/util/prost.rs#L43-L91>
+//!
+//! ```
+//! --- Actor Traces ---
+//! >> Actor 1
+//! Actor 1: `<mv_name (release mode) or sql (debug_mode)>` [46.013s]
+//!   Epoch 8397933912391680 [112.048ms]
+//!     Source 100002712 [112.322ms]
+//!       receive_barrier [112.316ms]
+//! ```
+
 mod analyze;
 mod transcribe;
 mod tree;

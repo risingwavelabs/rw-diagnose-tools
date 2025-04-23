@@ -41,6 +41,7 @@ impl AnalyzeSummary {
         }
     }
 
+    /// See doc on [`crate::await_tree`] for the format of the trace.
     pub fn from_traces<'a, M>(actor_traces: M) -> anyhow::Result<Self>
     where
         M: IntoIterator<Item = (&'a u32, &'a String)>,
@@ -80,7 +81,7 @@ impl Display for AnalyzeSummary {
         let mut bottleneck_actors_found = false;
 
         if !self.has_fast_children_actors.is_empty() {
-            writeln!(f, "--- Fast Children Actors ---")?;
+            writeln!(f, "\n\n--- Fast Children Actors ---")?;
             for (actor_id, tree) in &self.has_fast_children_actors {
                 writeln!(f, ">> Actor {}", actor_id)?;
                 writeln!(f, "{}", tree)?;
@@ -88,7 +89,7 @@ impl Display for AnalyzeSummary {
             bottleneck_actors_found = true;
         }
         if !self.io_bound_actors.is_empty() {
-            writeln!(f, "--- IO Bound Actors ---")?;
+            writeln!(f, "\n\n--- IO Bound Actors ---")?;
             for (io_info, actor_ids) in self.io_bound_actors.iter().sorted_by_key(|x| x.0) {
                 writeln!(f, ">> IO Info: `{}`", io_info)?;
                 writeln!(f, "  Actor IDs: {:?}", actor_ids)?;

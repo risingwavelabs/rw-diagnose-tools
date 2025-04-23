@@ -17,7 +17,9 @@ use std::str::FromStr;
 
 use crate::await_tree::tree::TreeView;
 
-/// Check `impl Display for StackTraceResponseOutput<'_>` for the format of the file.
+/// See doc on [`crate::await_tree`] for the format of the trace.
+/// 
+/// Returns `actor_id -> trace string`
 pub(crate) fn extract_actor_traces(content: &str) -> anyhow::Result<HashMap<u32, String>> {
     let mut actor_traces = HashMap::new();
     let mut in_actor_traces = false;
