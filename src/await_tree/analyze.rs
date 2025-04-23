@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 
 use crate::await_tree::tree::TreeView;
 use crate::await_tree::utils::extract_actor_traces;
@@ -30,6 +31,7 @@ pub struct AnalyzeSummary {
 
     // some intermediate results for debug
     total_actors_analyzed: usize,
+    actor_elapsed_ns: BTreeSet<(u128, u32)>,
 }
 
 impl AnalyzeSummary {
@@ -38,6 +40,7 @@ impl AnalyzeSummary {
             total_actors_analyzed: 0,
             has_fast_children_actors: HashMap::new(),
             io_bound_actors: HashMap::new(),
+            actor_elapsed_ns: Default::default(),
         }
     }
 
@@ -50,6 +53,9 @@ impl AnalyzeSummary {
         for (actor_id, trace) in actor_traces {
             summary.total_actors_analyzed += 1;
             let tree = parse_tree_from_trace(trace)?;
+            summary
+                .actor_elapsed_ns
+                .insert((tree.tree.elapsed_ns, *actor_id));
             if tree.has_fast_children() {
                 summary
                     .has_fast_children_actors
@@ -78,6 +84,28 @@ impl Display for AnalyzeSummary {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "------ Analyze Summary ------")?;
         writeln!(f, "Total actors analyzed: {}", self.total_actors_analyzed)?;
+
+        if !self.actor_elapsed_ns.is_empty() {
+            // TODO: can (should) we add sth like histogram?
+            writeln!(f, "\n--- Actor Elapsed Time Distribution ---")?;
+
+            let count = self.actor_elapsed_ns.len();
+            let min = self.actor_elapsed_ns.first().unwrap().0;
+            let max = self.actor_elapsed_ns.last().unwrap().0;
+
+            writeln!(f, "Count: {}", count)?;
+            writeln!(
+                f,
+                "Min: {:.3}s",
+                Duration::from_nanos(min as u64).as_secs_f64()
+            )?;
+            writeln!(
+                f,
+                "Max: {:.3}s",
+                Duration::from_nanos(max as u64).as_secs_f64()
+            )?;
+        }
+
         let mut bottleneck_actors_found = false;
 
         if !self.has_fast_children_actors.is_empty() {

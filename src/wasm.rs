@@ -28,8 +28,7 @@ fn from_file_content(content: &str) -> anyhow::Result<String> {
     web_sys::console::log_1(&format!("Extracted {} actor traces.", actor_traces.len()).into());
     web_sys::console::log_1(&format!("Actor IDs: {:?}", actor_traces.keys()).into());
 
-    let summary = AnalyzeSummary::from_traces(&actor_traces)
-        .context("Failed to analyze traces")?;
+    let summary = AnalyzeSummary::from_traces(&actor_traces).context("Failed to analyze traces")?;
 
     // Log the intermediate summary object before formatting
     web_sys::console::log_1(&format!("Intermediate analysis summary: {:#?}", summary).into());
