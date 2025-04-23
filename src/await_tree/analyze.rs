@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use itertools::Itertools;
-use std::collections::{BTreeSet, BinaryHeap, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
 
