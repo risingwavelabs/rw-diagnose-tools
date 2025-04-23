@@ -16,7 +16,7 @@
 //!
 //! <https://github.com/risingwavelabs/risingwave/blob/0aae97855991527ef024ddf6fda1529d81130d78/dashboard/pages/await_tree.tsx#L59-L76>
 //!
-//! ```
+//! ```text
 //! Await-Tree Dump of All Compute Nodes:
 //!
 //! [Actor 1]
@@ -31,7 +31,7 @@
 //! Check `impl Display for StackTraceResponseOutput<'_>` for the format of the file.
 //! <https://github.com/risingwavelabs/risingwave/blob/96d5238e55f91613f96f1f5d35fced0506882637/src/common/src/util/prost.rs#L43-L91>
 //!
-//! ```
+//! ```text
 //! --- Actor Traces ---
 //! >> Actor 1
 //! Actor 1: `<mv_name (release mode) or sql (debug_mode)>` [46.013s]
