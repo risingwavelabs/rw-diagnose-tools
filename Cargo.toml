@@ -10,11 +10,21 @@ version = "0.1.2"
 readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 anyhow = "1"
 itertools = "0.12"
-serde = {version = "1", features = ["derive"]}
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+wasm-bindgen = { version = "0.2", optional = true }
+# For better panic messages in the browser console
+console_error_panic_hook = { version = "0.1.7", optional = true }
+wee_alloc = { version = "0.4.5", optional = true }
+cfg-if = "1.0.0"
+web-sys = { version = "0.3", features = ["console"] , optional = true}
 
 [dev-dependencies]
 await-tree = { version = "0.3.0-alpha.3", features = ["serde"] }
@@ -26,3 +36,7 @@ name = "parse_text"
 
 [[example]]
 name = "parse_json"
+
+[features]
+default = []
+wasm = ["console_error_panic_hook", "wee_alloc", "wasm-bindgen", "web-sys"]

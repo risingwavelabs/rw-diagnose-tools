@@ -13,28 +13,20 @@
 // limitations under the License.
 
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::{self, BufRead};
-use std::path::Path;
 use std::str::FromStr;
 
 use crate::await_tree::tree::TreeView;
 
-/// Check `impl Display for StackTraceResponseOutput<'_>` for the format of the file.
-pub(crate) fn extract_actor_traces<P: AsRef<Path>>(
-    path: P,
-) -> anyhow::Result<HashMap<u32, String>> {
-    let file = File::open(path)?;
-    let reader = io::BufReader::new(file);
-
+/// See doc on [`crate::await_tree`] for the format of the trace.
+///
+/// Returns `actor_id -> trace string`
+pub(crate) fn extract_actor_traces(content: &str) -> anyhow::Result<HashMap<u32, String>> {
     let mut actor_traces = HashMap::new();
     let mut in_actor_traces = false;
     let mut current_actor_id = None;
     let mut current_trace = String::new();
 
-    for line in reader.lines() {
-        let line = line?;
-
+    for line in content.lines() {
         // Detect the start of the Actor Traces section
         if line == "--- Actor Traces ---" || line.starts_with("Await-Tree Dump of ") {
             // disgnose file use `--- Actor Traces ---` as the header

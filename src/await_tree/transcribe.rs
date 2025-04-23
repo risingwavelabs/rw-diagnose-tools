@@ -16,7 +16,9 @@ use crate::await_tree::tree::TreeView;
 use crate::await_tree::utils::extract_actor_traces;
 
 pub fn transcribe(path: String) -> anyhow::Result<()> {
-    let actor_traces = extract_actor_traces(&path)
+    let content =
+        std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("Failed to read file: {}", e))?;
+    let actor_traces = extract_actor_traces(&content)
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
     for (actor_id, trace) in actor_traces {
         let tree: TreeView = serde_json::from_str(&trace)

@@ -33,3 +33,25 @@ target/
 #.idea/
 
 /Cargo.lock
+
+# Rust / Cargo
+target/
+Cargo.lock
+
+# WASM build output
+/pkg/
+
+# Node / Vite
+/web/node_modules/
+/web/dist/
+/web/.eslintcache
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log

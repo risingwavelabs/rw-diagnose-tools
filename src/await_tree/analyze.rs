@@ -13,8 +13,9 @@
 // limitations under the License.
 
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 
 use crate::await_tree::tree::TreeView;
 use crate::await_tree::utils::extract_actor_traces;
@@ -27,23 +28,34 @@ pub struct AnalyzeSummary {
     /// IO bound rule usually match a lot of Trees once the storage is unavailable, as a
     /// result, too many trees are outputed. We only output the actor ids here.
     io_bound_actors: HashMap<IoInfo, HashSet<u32>>,
+
+    // some intermediate results for debug
+    total_actors_analyzed: usize,
+    actor_elapsed_ns: BTreeSet<(u128, u32)>,
 }
 
 impl AnalyzeSummary {
     pub fn new() -> Self {
         Self {
+            total_actors_analyzed: 0,
             has_fast_children_actors: HashMap::new(),
             io_bound_actors: HashMap::new(),
+            actor_elapsed_ns: Default::default(),
         }
     }
 
+    /// See doc on [`crate::await_tree`] for the format of the trace.
     pub fn from_traces<'a, M>(actor_traces: M) -> anyhow::Result<Self>
     where
         M: IntoIterator<Item = (&'a u32, &'a String)>,
     {
         let mut summary = Self::new();
         for (actor_id, trace) in actor_traces {
+            summary.total_actors_analyzed += 1;
             let tree = parse_tree_from_trace(trace)?;
+            summary
+                .actor_elapsed_ns
+                .insert((tree.tree.elapsed_ns, *actor_id));
             if tree.has_fast_children() {
                 summary
                     .has_fast_children_actors
@@ -55,6 +67,7 @@ impl AnalyzeSummary {
     }
 
     pub fn merge_other(&mut self, b: &AnalyzeSummary) {
+        self.total_actors_analyzed += b.total_actors_analyzed;
         self.has_fast_children_actors
             .extend(b.has_fast_children_actors.clone());
         self.io_bound_actors.extend(b.io_bound_actors.clone());
@@ -70,10 +83,33 @@ impl Default for AnalyzeSummary {
 impl Display for AnalyzeSummary {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "------ Analyze Summary ------")?;
+        writeln!(f, "Total actors analyzed: {}", self.total_actors_analyzed)?;
+
+        if !self.actor_elapsed_ns.is_empty() {
+            // TODO: can (should) we add sth like histogram?
+            writeln!(f, "\n--- Actor Elapsed Time Distribution ---")?;
+
+            let count = self.actor_elapsed_ns.len();
+            let min = self.actor_elapsed_ns.first().unwrap().0;
+            let max = self.actor_elapsed_ns.last().unwrap().0;
+
+            writeln!(f, "Count: {}", count)?;
+            writeln!(
+                f,
+                "Min: {:.3}s",
+                Duration::from_nanos(min as u64).as_secs_f64()
+            )?;
+            writeln!(
+                f,
+                "Max: {:.3}s",
+                Duration::from_nanos(max as u64).as_secs_f64()
+            )?;
+        }
+
         let mut bottleneck_actors_found = false;
 
         if !self.has_fast_children_actors.is_empty() {
-            writeln!(f, "--- Fast Children Actors ---")?;
+            writeln!(f, "\n\n--- Fast Children Actors ---")?;
             for (actor_id, tree) in &self.has_fast_children_actors {
                 writeln!(f, ">> Actor {}", actor_id)?;
                 writeln!(f, "{}", tree)?;
@@ -81,7 +117,7 @@ impl Display for AnalyzeSummary {
             bottleneck_actors_found = true;
         }
         if !self.io_bound_actors.is_empty() {
-            writeln!(f, "--- IO Bound Actors ---")?;
+            writeln!(f, "\n\n--- IO Bound Actors ---")?;
             for (io_info, actor_ids) in self.io_bound_actors.iter().sorted_by_key(|x| x.0) {
                 writeln!(f, ">> IO Info: `{}`", io_info)?;
                 writeln!(f, "  Actor IDs: {:?}", actor_ids)?;
@@ -223,7 +259,9 @@ impl TreeView {
 }
 
 pub fn bottleneck_detect_from_file(path: &str) -> anyhow::Result<AnalyzeSummary> {
-    let actor_traces = extract_actor_traces(path)
+    let content =
+        std::fs::read_to_string(path).map_err(|e| anyhow::anyhow!("Failed to read file: {}", e))?;
+    let actor_traces = extract_actor_traces(&content)
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
     AnalyzeSummary::from_traces(&actor_traces)
 }

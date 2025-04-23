@@ -13,3 +13,5 @@
 // limitations under the License.
 
 pub mod await_tree;
+#[cfg(feature = "wasm")]
+pub mod wasm;
