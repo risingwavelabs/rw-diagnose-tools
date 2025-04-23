@@ -27,11 +27,15 @@ pub struct AnalyzeSummary {
     /// IO bound rule usually match a lot of Trees once the storage is unavailable, as a
     /// result, too many trees are outputed. We only output the actor ids here.
     io_bound_actors: HashMap<IoInfo, HashSet<u32>>,
+
+    // some intermediate results for debug
+    total_actors_analyzed: usize,
 }
 
 impl AnalyzeSummary {
     pub fn new() -> Self {
         Self {
+            total_actors_analyzed: 0,
             has_fast_children_actors: HashMap::new(),
             io_bound_actors: HashMap::new(),
         }
@@ -43,6 +47,7 @@ impl AnalyzeSummary {
     {
         let mut summary = Self::new();
         for (actor_id, trace) in actor_traces {
+            summary.total_actors_analyzed += 1;
             let tree = parse_tree_from_trace(trace)?;
             if tree.has_fast_children() {
                 summary
@@ -55,6 +60,7 @@ impl AnalyzeSummary {
     }
 
     pub fn merge_other(&mut self, b: &AnalyzeSummary) {
+        self.total_actors_analyzed += b.total_actors_analyzed;
         self.has_fast_children_actors
             .extend(b.has_fast_children_actors.clone());
         self.io_bound_actors.extend(b.io_bound_actors.clone());
@@ -70,6 +76,7 @@ impl Default for AnalyzeSummary {
 impl Display for AnalyzeSummary {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "------ Analyze Summary ------")?;
+        writeln!(f, "Total actors analyzed: {}", self.total_actors_analyzed)?;
         let mut bottleneck_actors_found = false;
 
         if !self.has_fast_children_actors.is_empty() {

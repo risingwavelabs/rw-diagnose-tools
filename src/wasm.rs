@@ -24,11 +24,17 @@ fn from_file_content(content: &str) -> anyhow::Result<String> {
     let actor_traces = extract_actor_traces(content)
         .map_err(|e| anyhow::anyhow!("Failed to extract actor traces from file: {}", e))?;
 
-    web_sys::console::log_1(&format!("actor_traces: {:#?}", actor_traces).into());
+    // Log the number of actors extracted
+    web_sys::console::log_1(&format!("Extracted {} actor traces.", actor_traces.len()).into());
+    web_sys::console::log_1(&format!("Actor IDs: {:?}", actor_traces.keys()).into());
 
-    Ok(AnalyzeSummary::from_traces(&actor_traces)
-        .context("Failed to analyze traces")?
-        .to_string())
+    let summary = AnalyzeSummary::from_traces(&actor_traces)
+        .context("Failed to analyze traces")?;
+
+    // Log the intermediate summary object before formatting
+    web_sys::console::log_1(&format!("Intermediate analysis summary: {:#?}", summary).into());
+
+    Ok(summary.to_string())
 }
 
 /// Analyzes the await-tree dump provided as a string.
