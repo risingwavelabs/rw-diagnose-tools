@@ -176,8 +176,10 @@ impl FromStr for TreeView {
                 // Extract elapsed time from the format `[elapsed_ns]`
                 if let Some(elapsed_str) = rest.strip_suffix(']') {
                     let elapsed_ns = parse_elapsed_ns(elapsed_str.trim());
-                    let is_long_running =
-                        elapsed_ns >= 10_000_000_000 && !elapsed_str.starts_with("!!!");
+                    // For old dump files from cluster version < 2.4, consume_log is not marked as long running. So we handle it independently.
+                    let is_long_running = (elapsed_ns >= 10_000_000_000
+                        && !elapsed_str.starts_with("!!!"))
+                        || elapsed_str.starts_with("consume_log");
 
                     let span_view = SpanView {
                         name,
