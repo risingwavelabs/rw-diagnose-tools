@@ -12,7 +12,7 @@ function App() {
   const [inputMode, setInputMode] = useState<InputMode>('upload');
   const [pastedText, setPastedText] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState<string>('');
-  const [wrapLines, setWrapLines] = useState<boolean>(true);
+  const [wrapLines, setWrapLines] = useState<boolean>(false);
 
   // Initialize WASM module
   useEffect(() => {
