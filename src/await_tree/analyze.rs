@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use itertools::Itertools;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
 
@@ -32,6 +32,7 @@ pub struct AnalyzeSummary {
     // some intermediate results for debug
     total_actors_analyzed: usize,
     actor_elapsed_ns: BTreeSet<(u128, u32)>,
+    actor_name: HashMap<u32, String>,
 }
 
 impl AnalyzeSummary {
@@ -41,6 +42,7 @@ impl AnalyzeSummary {
             has_fast_children_actors: HashMap::new(),
             io_bound_actors: HashMap::new(),
             actor_elapsed_ns: Default::default(),
+            actor_name: Default::default(),
         }
     }
 
@@ -53,6 +55,21 @@ impl AnalyzeSummary {
         for (actor_id, trace) in actor_traces {
             summary.total_actors_analyzed += 1;
             let tree = parse_tree_from_trace(trace)?;
+            // >> Actor 2029188
+            // Actor 2029188: `developer_balances_mv` [11105.089s]
+            //   Epoch 8782342183256064 [!!! 10771.678s]
+            //     StreamScan 1EF68400002736 [!!! 10771.682s]
+            //       Merge 1EF68400000000 [!!! 10771.682s]
+            let actor_name = tree
+                .tree
+                .span
+                .name
+                .clone()
+                .split("`")
+                .nth(1)
+                .unwrap()
+                .to_string();
+            summary.actor_name.insert(*actor_id, actor_name);
             summary
                 .actor_elapsed_ns
                 .insert((tree.tree.elapsed_ns, *actor_id));
@@ -120,7 +137,22 @@ impl Display for AnalyzeSummary {
             writeln!(f, "\n\n--- IO Bound Actors ---")?;
             for (io_info, actor_ids) in self.io_bound_actors.iter().sorted_by_key(|x| x.0) {
                 writeln!(f, ">> IO Info: `{}`", io_info)?;
-                writeln!(f, "  Actor IDs: {:?}", actor_ids)?;
+                let mut actor_names: BTreeMap<String, BTreeSet<u32>> = BTreeMap::new();
+                for actor_id in actor_ids {
+                    let actor_name = self
+                        .actor_name
+                        .get(actor_id)
+                        .cloned()
+                        .unwrap_or("unknown".to_string());
+                    actor_names
+                        .entry(actor_name.clone())
+                        .or_default()
+                        .insert(*actor_id);
+                }
+                writeln!(f, "  Actors:")?;
+                for (actor_name, actor_ids) in actor_names.iter() {
+                    writeln!(f, "    {}: {:?}", actor_name, actor_ids)?;
+                }
             }
             bottleneck_actors_found = true;
         }

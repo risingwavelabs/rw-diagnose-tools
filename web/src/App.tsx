@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, ChangeEvent } from 'react';
 import init, { analyze_dump_str } from '../../out/rw_diagnose_tools';
+import { ScrollArea, ScrollBar } from './components/scroll-area';
 
 type InputMode = 'upload' | 'paste';
 
@@ -10,6 +11,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>('upload');
   const [pastedText, setPastedText] = useState<string>('');
+  const [copySuccess, setCopySuccess] = useState<string>('');
+  const [wrapLines, setWrapLines] = useState<boolean>(false);
 
   // Initialize WASM module
   useEffect(() => {
@@ -115,6 +118,25 @@ function App() {
     runAnalysis(pastedText);
   };
 
+  // Copy to clipboard function
+  const handleCopyResults = async () => {
+    try {
+      await navigator.clipboard.writeText(analysisResult);
+      setCopySuccess('Copied!');
+      // Clear the success message after 2 seconds
+      setTimeout(() => setCopySuccess(''), 2000);
+    } catch (err) {
+      console.error('Failed to copy: ', err);
+      setCopySuccess('Failed to copy');
+      setTimeout(() => setCopySuccess(''), 2000);
+    }
+  };
+
+  // Handle wrap lines toggle
+  const handleWrapToggle = (event: ChangeEvent<HTMLInputElement>) => {
+    setWrapLines(event.target.checked);
+  };
+
   // --- Render --- //
   return (
     <div style={{ fontFamily: 'sans-serif', padding: '20px', lineHeight: '1.6' }}>
@@ -147,7 +169,7 @@ function App() {
       </div>
 
       {/* Input Area */}
-      <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #eee', borderRadius: '4px' }}>
+      <div style={{ marginBottom: '20px', padding: '15px', border: '1px solid #ccc', borderRadius: '4px', backgroundColor: '#fafafa' }}>
         {inputMode === 'upload' && (
           <div>
             <label htmlFor="dumpFile" style={{ display: 'block', marginBottom: '5px' }}>Select Dump File:</label>
@@ -185,11 +207,56 @@ function App() {
       </div>
 
       {/* Results Area */}
-      <h2>Analysis Results:</h2>
-      {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
-      <pre style={{ marginTop: '10px', padding: '15px', border: '1px solid #ccc', backgroundColor: '#f9f9f9', whiteSpace: 'pre-wrap', fontFamily: 'monospace', minHeight: '100px' }}>
-        {isLoading ? 'Analyzing...' : analysisResult}
-      </pre>
+      <div style={{ width: '1200px', maxWidth: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+          <h2 style={{ margin: 0, marginRight: '15px' }}>Analysis Results:</h2>
+          <button
+            onClick={handleCopyResults}
+            disabled={!analysisResult || analysisResult === 'Select input method or upload a file.' || analysisResult === 'Analyzing...' || analysisResult === 'Analysis failed.' || analysisResult === 'Error loading analysis engine.' || analysisResult === 'Analysis engine not ready. Please wait or refresh.' || analysisResult === 'Please provide content (upload file or paste text).' || analysisResult === 'No file selected.' || analysisResult === 'Error reading file.' || analysisResult === 'Input mode changed. Paste text or upload file.'}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold'
+            }}
+          >
+            Copy Results
+          </button>
+          {copySuccess && (
+            <span style={{ marginLeft: '10px', color: copySuccess === 'Copied!' ? 'green' : 'red', fontSize: '14px' }}>
+              {copySuccess}
+            </span>
+          )}
+          <label style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', fontSize: '14px' }}>
+            <input
+              type="checkbox"
+              checked={wrapLines}
+              onChange={handleWrapToggle}
+              style={{ marginRight: '5px' }}
+            />
+            Wrap Lines
+          </label>
+        </div>
+        {error && <p style={{ color: 'red', fontWeight: 'bold' }}>Error: {error}</p>}
+        <ScrollArea className="h-[400px] w-full rounded-md border p-4">
+          <pre style={{ 
+            margin: 0,
+            whiteSpace: wrapLines ? 'pre-wrap' : 'pre', 
+            fontFamily: 'monospace', 
+            color: '#333',
+            backgroundColor: 'transparent',
+            minWidth: wrapLines ? 'auto' : 'max-content',
+            overflow: 'auto'
+          }}>
+            {isLoading ? 'Analyzing...' : analysisResult}
+          </pre>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      </div>
     </div>
   );
 }

@@ -74,7 +74,7 @@ pub(crate) fn extract_actor_traces(content: &str) -> anyhow::Result<HashMap<u32,
             }
         } else if in_actor_traces {
             // Accumulate trace content for the current actor
-            current_trace.push_str(&line);
+            current_trace.push_str(line);
             current_trace.push('\n');
         }
     }

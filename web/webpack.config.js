@@ -37,7 +37,7 @@ export default (env, argv) => {
                 },
                 {
                     test: /\.css$/i,
-                    use: ['style-loader', 'css-loader'], // Process CSS files
+                    use: ['style-loader', 'css-loader', 'postcss-loader'], // Process CSS files with PostCSS
                 },
                 {
                     test: /\.(png|svg|jpg|jpeg|gif)$/i,
