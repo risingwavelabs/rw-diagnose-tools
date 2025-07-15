@@ -12,7 +12,7 @@ function App() {
   const [inputMode, setInputMode] = useState<InputMode>('upload');
   const [pastedText, setPastedText] = useState<string>('');
   const [copySuccess, setCopySuccess] = useState<string>('');
-  const [wrapLines, setWrapLines] = useState<boolean>(false);
+  const [wrapLines, setWrapLines] = useState<boolean>(true);
 
   // Initialize WASM module
   useEffect(() => {
@@ -140,6 +140,44 @@ function App() {
   // --- Render --- //
   return (
     <div style={{ fontFamily: 'sans-serif', padding: '20px', lineHeight: '1.6' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '10px' }}>
+        <a
+          href="https://github.com/risingwavelabs/rw-diagnose-tools"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#24292f',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            textDecoration: 'none',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            display: 'inline-block',
+          }}
+        >
+          GitHub
+        </a>
+        <a
+          href="https://github.com/risingwavelabs/rw-diagnose-tools/issues/new"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            textDecoration: 'none',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            display: 'inline-block',
+          }}
+        >
+          Submit Bug / Feedback
+        </a>
+      </div>
       <h1>RisingWave Await-Tree Analyzer</h1>
       <p>Analyze potential bottlenecks in your await-tree dump (JSON or TXT format).</p>
 
