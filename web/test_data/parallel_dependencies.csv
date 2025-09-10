@@ -1,0 +1,10 @@
+upstream_relation_id,downstream_relation_id
+start,task1
+start,task2
+start,task3
+start,task4
+task1,merge
+task2,merge
+task3,merge
+task4,merge
+merge,end

@@ -1,0 +1,3 @@
+upstream_relation_id,downstream_relation_id
+A,B
+B,C

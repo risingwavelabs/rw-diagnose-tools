@@ -1,0 +1,10 @@
+id,name
+A,Input Data
+B,Data Validation
+C,Data Transformation
+D,Feature Engineering
+E,Model Training
+F,Model Validation
+G,Model Deployment
+H,Monitoring
+I,Alerting

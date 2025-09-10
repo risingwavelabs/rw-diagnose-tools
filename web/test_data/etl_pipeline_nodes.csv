@@ -1,0 +1,13 @@
+id,name
+raw_data,Raw Data Source
+extract1,Extract Users
+extract2,Extract Orders
+extract3,Extract Products
+transform1,Clean User Data
+transform2,Clean Order Data
+transform3,Clean Product Data
+load1,Load to Data Warehouse
+load2,Load to Data Lake
+load3,Load to Cache
+monitor,Data Quality Monitor
+alert,Anomaly Alert

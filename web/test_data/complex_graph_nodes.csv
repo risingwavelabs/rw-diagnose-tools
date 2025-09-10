@@ -1,0 +1,11 @@
+id,name
+source1,User Events Table
+source2,Product Catalog
+filter1,Active Users Filter
+filter2,Available Products Filter
+join1,User-Product Join
+agg1,Event Count Aggregation
+agg2,Revenue Sum Aggregation
+sort1,Sort by Date
+output1,Analytics Dashboard
+output2,Report Export
