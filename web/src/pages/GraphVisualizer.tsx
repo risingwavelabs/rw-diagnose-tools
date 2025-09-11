@@ -1,5 +1,8 @@
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
+import dagre from 'dagre';
 import { CSVParser, ParsedGraphData, GraphNode, GraphDependency } from '../utils/csvParser';
+
+type LayoutDirection = 'TB' | 'BT' | 'LR' | 'RL';
 
 export const GraphVisualizer: React.FC = () => {
   const [nodeDefinitionsFile, setNodeDefinitionsFile] = useState<File | null>(null);
@@ -7,6 +10,7 @@ export const GraphVisualizer: React.FC = () => {
   const [parsedData, setParsedData] = useState<ParsedGraphData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('TB');
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Handle file uploads
@@ -60,7 +64,7 @@ export const GraphVisualizer: React.FC = () => {
     });
   };
 
-  // Draw graph on canvas
+  // Draw graph on canvas using dagre layout
   const drawGraph = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || !parsedData) return;
@@ -73,68 +77,148 @@ export const GraphVisualizer: React.FC = () => {
 
     const { nodes, dependencies } = parsedData;
     
-    // Simple layout: arrange nodes in a circle
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-    const radius = Math.min(canvas.width, canvas.height) / 3;
-    
-    // Calculate node positions
-    const nodePositions = new Map<string, { x: number; y: number }>();
-    nodes.forEach((node, index) => {
-      const angle = (2 * Math.PI * index) / nodes.length;
-      const x = centerX + radius * Math.cos(angle);
-      const y = centerY + radius * Math.sin(angle);
-      nodePositions.set(node.id, { x, y });
+    // Create a new directed graph
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({
+      rankdir: layoutDirection, // Layout direction
+      align: 'UL',   // Upper Left alignment
+      nodesep: 50,   // Node separation
+      ranksep: 80,   // Rank separation
+      marginx: 20,   // Margin X
+      marginy: 20,   // Margin Y
     });
 
-    // Draw edges first (so they appear behind nodes)
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 2;
-    dependencies.forEach(dep => {
-      const upstreamPos = nodePositions.get(dep.upstream_relation_id);
-      const downstreamPos = nodePositions.get(dep.downstream_relation_id);
+    // Set default edge label
+    g.setDefaultEdgeLabel(() => ({}));
+
+    // Add nodes to the graph
+    nodes.forEach(node => {
+      // Estimate text width for node sizing
+      ctx.font = '12px Arial';
+      const textWidth = ctx.measureText(node.name).width;
+      const nodeWidth = Math.max(80, textWidth + 20);
+      const nodeHeight = 40;
       
-      if (upstreamPos && downstreamPos) {
-        ctx.beginPath();
-        ctx.moveTo(upstreamPos.x, upstreamPos.y);
-        ctx.lineTo(downstreamPos.x, downstreamPos.y);
-        ctx.stroke();
-        
-        // Draw arrow
-        const angle = Math.atan2(downstreamPos.y - upstreamPos.y, downstreamPos.x - upstreamPos.x);
-        const arrowLength = 10;
-        const arrowAngle = Math.PI / 6;
-        
-        ctx.beginPath();
-        ctx.moveTo(downstreamPos.x, downstreamPos.y);
-        ctx.lineTo(
-          downstreamPos.x - arrowLength * Math.cos(angle - arrowAngle),
-          downstreamPos.y - arrowLength * Math.sin(angle - arrowAngle)
+      g.setNode(node.id, {
+        width: nodeWidth,
+        height: nodeHeight,
+        label: node.name
+      });
+    });
+
+    // Add edges to the graph
+    dependencies.forEach(dep => {
+      g.setEdge(dep.upstream_relation_id, dep.downstream_relation_id);
+    });
+
+    // Run the layout algorithm
+    dagre.layout(g);
+
+    // Get the graph dimensions
+    const graphWidth = g.graph().width || 400;
+    const graphHeight = g.graph().height || 300;
+
+    // Calculate scaling and centering
+    const scaleX = (canvas.width - 40) / graphWidth;
+    const scaleY = (canvas.height - 40) / graphHeight;
+    const scale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
+
+    const offsetX = (canvas.width - graphWidth * scale) / 2;
+    const offsetY = (canvas.height - graphHeight * scale) / 2;
+
+    // Helper function to get edge color based on weight
+    const getEdgeColor = (weight?: number): string => {
+      if (weight === undefined) {
+        return '#666'; // Default gray for edges without weight
+      }
+      
+      // Convert weight (0-1) to color (green to red)
+      // 0 = green, 0.5 = yellow, 1 = red
+      const hue = (1 - weight) * 120; // 120 degrees is green, 0 degrees is red
+      return `hsl(${hue}, 70%, 50%)`;
+    };
+
+    // Draw edges first (so they appear behind nodes)
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    g.edges().forEach(edge => {
+      const edgeData = g.edge(edge);
+      if (edgeData && edgeData.points) {
+        // Find the corresponding dependency to get the color weight
+        const dependency = dependencies.find(dep => 
+          dep.upstream_relation_id === edge.v && dep.downstream_relation_id === edge.w
         );
-        ctx.moveTo(downstreamPos.x, downstreamPos.y);
-        ctx.lineTo(
-          downstreamPos.x - arrowLength * Math.cos(angle + arrowAngle),
-          downstreamPos.y - arrowLength * Math.sin(angle + arrowAngle)
+        
+        // Set edge color based on weight
+        ctx.strokeStyle = getEdgeColor(dependency?.color_weight);
+        
+        ctx.beginPath();
+        ctx.moveTo(
+          edgeData.points[0].x * scale + offsetX,
+          edgeData.points[0].y * scale + offsetY
         );
+        
+        // Draw curved edges if there are multiple points
+        if (edgeData.points.length > 2) {
+          for (let i = 1; i < edgeData.points.length - 1; i++) {
+            const point = edgeData.points[i];
+            ctx.lineTo(point.x * scale + offsetX, point.y * scale + offsetY);
+          }
+        }
+        
+        const endPoint = edgeData.points[edgeData.points.length - 1];
+        ctx.lineTo(endPoint.x * scale + offsetX, endPoint.y * scale + offsetY);
         ctx.stroke();
+
+        // Draw arrow at the end with the same color
+        if (edgeData.points.length >= 2) {
+          const lastPoint = edgeData.points[edgeData.points.length - 1];
+          const secondLastPoint = edgeData.points[edgeData.points.length - 2];
+          
+          const angle = Math.atan2(
+            lastPoint.y - secondLastPoint.y,
+            lastPoint.x - secondLastPoint.x
+          );
+          
+          const arrowLength = 10;
+          const arrowAngle = Math.PI / 6;
+          
+          ctx.beginPath();
+          ctx.moveTo(lastPoint.x * scale + offsetX, lastPoint.y * scale + offsetY);
+          ctx.lineTo(
+            (lastPoint.x - arrowLength * Math.cos(angle - arrowAngle)) * scale + offsetX,
+            (lastPoint.y - arrowLength * Math.sin(angle - arrowAngle)) * scale + offsetY
+          );
+          ctx.moveTo(lastPoint.x * scale + offsetX, lastPoint.y * scale + offsetY);
+          ctx.lineTo(
+            (lastPoint.x - arrowLength * Math.cos(angle + arrowAngle)) * scale + offsetX,
+            (lastPoint.y - arrowLength * Math.sin(angle + arrowAngle)) * scale + offsetY
+          );
+          ctx.stroke();
+        }
       }
     });
 
     // Draw nodes
-    nodes.forEach(node => {
-      const pos = nodePositions.get(node.id);
-      if (!pos) return;
+    g.nodes().forEach(nodeId => {
+      const nodeData = g.node(nodeId);
+      if (!nodeData) return;
 
-      // Node circle
+      const x = nodeData.x * scale + offsetX;
+      const y = nodeData.y * scale + offsetY;
+      const width = nodeData.width * scale;
+      const height = nodeData.height * scale;
+
+      // Node rectangle
       ctx.fillStyle = '#4CAF50';
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 20, 0, 2 * Math.PI);
-      ctx.fill();
+      ctx.fillRect(x - width / 2, y - height / 2, width, height);
       
       // Node border
       ctx.strokeStyle = '#2E7D32';
       ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.strokeRect(x - width / 2, y - height / 2, width, height);
 
       // Node label
       ctx.fillStyle = '#000';
@@ -142,11 +226,16 @@ export const GraphVisualizer: React.FC = () => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // Truncate long names
-      const displayName = node.name.length > 15 ? node.name.substring(0, 12) + '...' : node.name;
-      ctx.fillText(displayName, pos.x, pos.y);
+      // Truncate long names if needed
+      let displayName = nodeData.label;
+      const maxWidth = width - 10;
+      while (ctx.measureText(displayName).width > maxWidth && displayName.length > 3) {
+        displayName = displayName.substring(0, displayName.length - 4) + '...';
+      }
+      
+      ctx.fillText(displayName, x, y);
     });
-  }, [parsedData]);
+  }, [parsedData, layoutDirection]);
 
   // Redraw graph when data changes
   useEffect(() => {
@@ -214,7 +303,9 @@ export const GraphVisualizer: React.FC = () => {
             style={{ marginBottom: '5px' }}
           />
           <small style={{ color: '#666', display: 'block' }}>
-            Expected format: upstream_relation_id,downstream_relation_id (e.g., "node1,node2")
+            Expected format: upstream_relation_id,downstream_relation_id[,color_weight] (e.g., "node1,node2,0.8")
+            <br />
+            <strong>color_weight</strong> (optional): Number between 0-1 for edge coloring (0=green, 1=red)
           </small>
           {dependenciesFile && (
             <div style={{ color: 'green', fontSize: '14px', marginTop: '5px' }}>
@@ -259,7 +350,27 @@ export const GraphVisualizer: React.FC = () => {
       {/* Graph Visualization */}
       {parsedData && (
         <div style={{ marginBottom: '20px' }}>
-          <h3>Graph Visualization</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h3 style={{ margin: 0 }}>Graph Visualization</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ fontSize: '14px', fontWeight: 'bold' }}>Layout Direction:</label>
+              <select
+                value={layoutDirection}
+                onChange={(e) => setLayoutDirection(e.target.value as LayoutDirection)}
+                style={{
+                  padding: '5px 10px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="TB">Top to Bottom</option>
+                <option value="BT">Bottom to Top</option>
+                <option value="LR">Left to Right</option>
+                <option value="RL">Right to Left</option>
+              </select>
+            </div>
+          </div>
           <div style={{ 
             border: '1px solid #ccc', 
             borderRadius: '4px', 
@@ -279,7 +390,7 @@ export const GraphVisualizer: React.FC = () => {
           </div>
           
           {/* Graph Statistics */}
-          <div style={{ marginTop: '15px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+          <div style={{ marginTop: '15px', display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
             <div style={{ 
               padding: '10px', 
               backgroundColor: '#e3f2fd', 
@@ -296,6 +407,32 @@ export const GraphVisualizer: React.FC = () => {
             }}>
               <strong>Dependencies:</strong> {parsedData.dependencies.length}
             </div>
+            
+            {/* Color Legend */}
+            {parsedData.dependencies.some(dep => dep.color_weight !== undefined) && (
+              <div style={{ 
+                padding: '10px', 
+                backgroundColor: '#fff3e0', 
+                borderRadius: '4px',
+                minWidth: '200px'
+              }}>
+                <strong>Edge Color Legend:</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '20px', height: '3px', backgroundColor: 'hsl(120, 70%, 50%)' }}></div>
+                    <span style={{ fontSize: '12px' }}>0 (Green)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '20px', height: '3px', backgroundColor: 'hsl(60, 70%, 50%)' }}></div>
+                    <span style={{ fontSize: '12px' }}>0.5 (Yellow)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '20px', height: '3px', backgroundColor: 'hsl(0, 70%, 50%)' }}></div>
+                    <span style={{ fontSize: '12px' }}>1 (Red)</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -332,11 +469,16 @@ node4,Output Table`}
             marginTop: '5px',
             fontSize: '12px'
           }}>
-{`upstream_relation_id,downstream_relation_id
-node1,node2
-node2,node3
-node3,node4`}
+{`upstream_relation_id,downstream_relation_id,color_weight
+node1,node2,0.2
+node2,node3,0.8
+node3,node4,0.5`}
           </pre>
+          <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+            <strong>Note:</strong> The color_weight column is optional. If omitted, edges will be gray.
+            <br />
+            Values: 0 = green (low weight), 0.5 = yellow (medium), 1 = red (high weight)
+          </small>
         </div>
       </div>
     </div>

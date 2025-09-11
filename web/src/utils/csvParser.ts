@@ -6,6 +6,7 @@ export interface GraphNode {
 export interface GraphDependency {
   upstream_relation_id: string;
   downstream_relation_id: string;
+  color_weight?: number; // Optional weight for edge coloring (0-1)
 }
 
 export interface ParsedGraphData {
@@ -78,7 +79,7 @@ export class CSVParser {
 
   /**
    * Parse dependencies CSV
-   * Expected format: upstream_relation_id,downstream_relation_id
+   * Expected format: upstream_relation_id,downstream_relation_id[,color_weight]
    */
   static parseDependencies(csvContent: string): GraphDependency[] {
     const rows = this.parseCSV(csvContent);
@@ -89,7 +90,8 @@ export class CSVParser {
 
     // Check if header exists and matches expected format
     const header = rows[0];
-    const expectedHeaders = ['upstream_relation_id', 'downstream_relation_id'];
+    const hasColorWeight = header.length >= 3 && 
+      (header[2].toLowerCase().includes('color') || header[2].toLowerCase().includes('weight'));
     
     if (header.length < 2) {
       throw new Error('Dependencies CSV must have at least 2 columns: upstream_relation_id, downstream_relation_id');
@@ -115,7 +117,25 @@ export class CSVParser {
         throw new Error(`Row ${i + 1}: Both upstream_relation_id and downstream_relation_id must be non-empty`);
       }
       
-      dependencies.push({ upstream_relation_id, downstream_relation_id });
+      const dependency: GraphDependency = { upstream_relation_id, downstream_relation_id };
+      
+      // Parse color weight if present
+      if (hasColorWeight && row.length >= 3 && row[2].trim()) {
+        const weightStr = row[2].trim();
+        const weight = parseFloat(weightStr);
+        
+        if (isNaN(weight)) {
+          throw new Error(`Row ${i + 1}: Invalid color_weight value "${weightStr}". Must be a number between 0 and 1.`);
+        }
+        
+        if (weight < 0 || weight > 1) {
+          throw new Error(`Row ${i + 1}: color_weight must be between 0 and 1, got ${weight}.`);
+        }
+        
+        dependency.color_weight = weight;
+      }
+      
+      dependencies.push(dependency);
     }
 
     return dependencies;
