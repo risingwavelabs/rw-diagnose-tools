@@ -12,6 +12,9 @@
 | `error_test` | 3 | 3 | Invalid | Error handling |
 | `color_weight` | 4 | 3 | Linear with colors | Color weight demonstration |
 | `mixed_weights` | 5 | 4 | Multi-source with colors | Mixed weight values |
+| `spectrum` | 5 | 4 | Multi-source spectrum | Color spectrum demonstration |
+| `no_headers` | 4 | 3 | Linear without headers | Ignore headers test |
+| `custom_headers` | 5 | 4 | Multi-source with custom headers | Custom header format test |
 
 ## Graph Visualizations You'll See
 
@@ -64,6 +67,8 @@ raw_data ──→ extract3 ──→ transform3 ──→ load3 ──┘
 4. **Verify Errors**: Use `error_test` to ensure proper error handling
 5. **Explore Patterns**: Try `parallel` and `dag` to see different graph structures
 6. **Test Color Weights**: Use `color_weight` and `mixed_weights` to see edge coloring
+7. **Test Color Spectrum**: Use `spectrum` to see the smooth green-to-red color gradient
+8. **Test Header Options**: Use `no_headers` and `custom_headers` to test ignore headers feature
 
 ## File Locations
 

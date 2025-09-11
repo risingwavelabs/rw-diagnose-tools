@@ -1,6 +1,6 @@
 import React, { useState, useCallback, ChangeEvent, useRef, useEffect } from 'react';
 import dagre from 'dagre';
-import { CSVParser, ParsedGraphData, GraphNode, GraphDependency } from '../utils/csvParser';
+import { CSVParser, ParsedGraphData } from '../utils/csvParser';
 
 type LayoutDirection = 'TB' | 'BT' | 'LR' | 'RL';
 
@@ -11,6 +11,8 @@ export const GraphVisualizer: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('TB');
+  const [ignoreHeaders, setIgnoreHeaders] = useState<boolean>(false);
+  const ignoreHeadersRef = useRef<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Handle file uploads
@@ -44,7 +46,12 @@ export const GraphVisualizer: React.FC = () => {
       ]);
 
       // Parse the CSV data
-      const data = CSVParser.parseGraphData(nodeDefinitionsContent, dependenciesContent);
+      const currentIgnoreHeaders = ignoreHeadersRef.current;
+      console.log('🔍 DEBUG: About to parse with ignoreHeaders:', currentIgnoreHeaders);
+      const data = CSVParser.parseGraphData(nodeDefinitionsContent, dependenciesContent, currentIgnoreHeaders);
+      console.log('🔍 DEBUG: Parsed data:', data);
+      console.log('🔍 DEBUG: Dependencies with color weights:', data.dependencies.filter(dep => dep.color_weight !== undefined));
+      console.log('🔍 DEBUG: ignoreHeaders was:', currentIgnoreHeaders);
       setParsedData(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to parse CSV files');
@@ -59,7 +66,7 @@ export const GraphVisualizer: React.FC = () => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => resolve(e.target?.result as string);
-      reader.onerror = (e) => reject(new Error('Failed to read file'));
+      reader.onerror = () => reject(new Error('Failed to read file'));
       reader.readAsText(file);
     });
   };
@@ -132,10 +139,29 @@ export const GraphVisualizer: React.FC = () => {
         return '#666'; // Default gray for edges without weight
       }
       
-      // Convert weight (0-1) to color (green to red)
-      // 0 = green, 0.5 = yellow, 1 = red
-      const hue = (1 - weight) * 120; // 120 degrees is green, 0 degrees is red
-      return `hsl(${hue}, 70%, 50%)`;
+      // Create a smooth spectrum from green to red
+      // 0 = pure green, 0.5 = yellow, 1 = pure red
+      // Use a more sophisticated color mapping for better visual distinction
+      
+      if (weight <= 0) {
+        return '#00FF00'; // Pure green
+      } else if (weight >= 1) {
+        return '#FF0000'; // Pure red
+      } else if (weight <= 0.5) {
+        // Green to yellow transition (0 to 0.5)
+        const ratio = weight * 2; // Scale to 0-1
+        const red = Math.round(255 * ratio);
+        const green = 255;
+        const blue = 0;
+        return `rgb(${red}, ${green}, ${blue})`;
+      } else {
+        // Yellow to red transition (0.5 to 1)
+        const ratio = (weight - 0.5) * 2; // Scale to 0-1
+        const red = 255;
+        const green = Math.round(255 * (1 - ratio));
+        const blue = 0;
+        return `rgb(${red}, ${green}, ${blue})`;
+      }
     };
 
     // Draw edges first (so they appear behind nodes)
@@ -150,6 +176,13 @@ export const GraphVisualizer: React.FC = () => {
         const dependency = dependencies.find(dep => 
           dep.upstream_relation_id === edge.v && dep.downstream_relation_id === edge.w
         );
+        
+        // Debug logging
+        console.log(`🔍 DEBUG: Edge ${edge.v} -> ${edge.w}:`, {
+          dependency,
+          colorWeight: dependency?.color_weight,
+          edgeColor: getEdgeColor(dependency?.color_weight)
+        });
         
         // Set edge color based on weight
         ctx.strokeStyle = getEdgeColor(dependency?.color_weight);
@@ -227,7 +260,7 @@ export const GraphVisualizer: React.FC = () => {
       ctx.textBaseline = 'middle';
       
       // Truncate long names if needed
-      let displayName = nodeData.label;
+      let displayName = nodeData.label || '';
       const maxWidth = width - 10;
       while (ctx.measureText(displayName).width > maxWidth && displayName.length > 3) {
         displayName = displayName.substring(0, displayName.length - 4) + '...';
@@ -312,6 +345,25 @@ export const GraphVisualizer: React.FC = () => {
               ✓ {dependenciesFile.name}
             </div>
           )}
+        </div>
+
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+            <input
+              type="checkbox"
+              checked={ignoreHeaders}
+              onChange={(e) => {
+                console.log('🔍 DEBUG: Checkbox changed to:', e.target.checked);
+                setIgnoreHeaders(e.target.checked);
+                ignoreHeadersRef.current = e.target.checked;
+              }}
+              style={{ margin: 0 }}
+            />
+            <span>Ignore CSV headers (treat first row as data)</span>
+          </label>
+          <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
+            Check this if your CSV files don't have headers or have different header formats
+          </small>
         </div>
 
         <button
@@ -414,21 +466,24 @@ export const GraphVisualizer: React.FC = () => {
                 padding: '10px', 
                 backgroundColor: '#fff3e0', 
                 borderRadius: '4px',
-                minWidth: '200px'
+                minWidth: '250px'
               }}>
-                <strong>Edge Color Legend:</strong>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '5px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <div style={{ width: '20px', height: '3px', backgroundColor: 'hsl(120, 70%, 50%)' }}></div>
-                    <span style={{ fontSize: '12px' }}>0 (Green)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <div style={{ width: '20px', height: '3px', backgroundColor: 'hsl(60, 70%, 50%)' }}></div>
-                    <span style={{ fontSize: '12px' }}>0.5 (Yellow)</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <div style={{ width: '20px', height: '3px', backgroundColor: 'hsl(0, 70%, 50%)' }}></div>
-                    <span style={{ fontSize: '12px' }}>1 (Red)</span>
+                <strong>Edge Color Spectrum:</strong>
+                <div style={{ marginTop: '8px' }}>
+                  {/* Color gradient bar */}
+                  <div style={{ 
+                    width: '200px', 
+                    height: '20px', 
+                    background: 'linear-gradient(to right, #00FF00, #FFFF00, #FF0000)',
+                    borderRadius: '3px',
+                    border: '1px solid #ccc',
+                    marginBottom: '5px'
+                  }}></div>
+                  {/* Labels */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#666' }}>
+                    <span>0 (Low)</span>
+                    <span>0.5 (Medium)</span>
+                    <span>1 (High)</span>
                   </div>
                 </div>
               </div>
@@ -440,6 +495,10 @@ export const GraphVisualizer: React.FC = () => {
       {/* Sample CSV Format */}
       <div style={{ marginTop: '30px', padding: '15px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#f9f9f9' }}>
         <h4>Sample CSV Format</h4>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <strong>With Headers (default):</strong>
+        </div>
         
         <div style={{ marginBottom: '15px' }}>
           <strong>Node Definitions CSV (nodes.csv):</strong>
@@ -477,8 +536,44 @@ node3,node4,0.5`}
           <small style={{ color: '#666', display: 'block', marginTop: '5px' }}>
             <strong>Note:</strong> The color_weight column is optional. If omitted, edges will be gray.
             <br />
-            Values: 0 = green (low weight), 0.5 = yellow (medium), 1 = red (high weight)
+            Values: 0 = green (low), 0.5 = yellow (medium), 1 = red (high) - smooth spectrum
           </small>
+        </div>
+
+        <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
+          <strong>Without Headers (check "Ignore CSV headers"):</strong>
+          <div style={{ marginTop: '10px' }}>
+            <strong>Node Definitions CSV:</strong>
+            <pre style={{ 
+              backgroundColor: '#fff', 
+              padding: '10px', 
+              border: '1px solid #ccc', 
+              borderRadius: '4px',
+              marginTop: '5px',
+              fontSize: '12px'
+            }}>
+{`node1,Source Table
+node2,Filter Operation
+node3,Join Operation
+node4,Output Table`}
+            </pre>
+          </div>
+          
+          <div style={{ marginTop: '10px' }}>
+            <strong>Dependencies CSV:</strong>
+            <pre style={{ 
+              backgroundColor: '#fff', 
+              padding: '10px', 
+              border: '1px solid #ccc', 
+              borderRadius: '4px',
+              marginTop: '5px',
+              fontSize: '12px'
+            }}>
+{`node1,node2,0.2
+node2,node3,0.8
+node3,node4,0.5`}
+            </pre>
+          </div>
         </div>
       </div>
     </div>

@@ -1,0 +1,6 @@
+node_id,display_name
+source1,High Priority Source
+source2,Low Priority Source
+filter1,Data Filter
+join1,Data Join
+output1,Final Output
