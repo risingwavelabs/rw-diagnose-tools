@@ -1,0 +1,11 @@
+upstream_relation_id,downstream_relation_id
+source1,filter1
+source2,filter2
+filter1,join1
+filter2,join1
+join1,agg1
+join1,agg2
+agg1,sort1
+agg2,sort1
+sort1,output1
+sort1,output2

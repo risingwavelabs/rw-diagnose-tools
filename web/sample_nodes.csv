@@ -1,0 +1,7 @@
+id,name
+node1,Source Table
+node2,Filter Operation
+node3,Join Operation
+node4,Output Table
+node5,Sort Operation
+node6,Group By

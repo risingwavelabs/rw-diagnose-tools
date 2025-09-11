@@ -1,0 +1,7 @@
+upstream_relation_id,downstream_relation_id
+node1,node2
+node2,node3
+node3,node4
+node1,node5
+node5,node6
+node6,node4

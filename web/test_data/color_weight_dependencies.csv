@@ -1,0 +1,4 @@
+upstream_relation_id,downstream_relation_id,color_weight
+A,B,0.1
+B,C,0.9
+C,D,0.3

@@ -1,0 +1,9 @@
+upstream_relation_id,downstream_relation_id
+A,B
+B,C
+C,D
+D,E
+E,F
+F,G
+G,H
+H,I

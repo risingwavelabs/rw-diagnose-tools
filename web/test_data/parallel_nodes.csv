@@ -1,0 +1,8 @@
+id,name
+start,Start Node
+task1,Task A
+task2,Task B
+task3,Task C
+task4,Task D
+merge,Merge Results
+end,End Node

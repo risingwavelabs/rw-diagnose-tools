@@ -1,0 +1,5 @@
+from_node,to_node,priority
+source1,filter1,0.9
+source2,filter1,0.2
+filter1,join1,0.6
+join1,output1,0.8
